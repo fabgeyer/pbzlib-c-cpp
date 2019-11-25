@@ -1,0 +1,7 @@
+*.descr
+*.pb.cc
+*.pb.h
+*.pbz
+*.o
+
+tests

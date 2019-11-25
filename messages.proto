@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package test;
+
+message Header { int32 version = 1; }
+
+message Object { int32 id = 1; }
