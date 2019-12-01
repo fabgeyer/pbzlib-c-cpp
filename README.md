@@ -4,7 +4,7 @@ This library is used for simplifying the serialization and deserialization of [p
 The main use-case is to save and read a large collection of objects of the same type.
 Each file contains a header with the description of the protocol buffer, meaning that no compilation of `.proto` description file is required before reading a `pbz` file.
 
-**WARNING:** This library is currently in alpha state and can only parse `pbz` files.
+**WARNING:** This library is currently in alpha state and can only write `pbz` files.
 
 
 ## Installation
