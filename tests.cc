@@ -5,39 +5,54 @@
 int main() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
+  // -----------------------------------------------------------------
+  // Write file
+
   int ret;
   pbzfile pbz;
-  ret = pbzfile_init(&pbz, "out.pbz");
-  if (ret != Z_OK) {
-    return ret;
-  }
-
-  ret = write_descriptor(&pbz, "messages.descr");
-  if (ret != Z_OK) {
-    return ret;
-  }
-
   test::Header hdr;
-  hdr.set_version(1);
-  ret = write_message(&pbz, &hdr);
-  if (ret != Z_OK) {
-    return ret;
+  test::Object obj;
+
+  if (pbzfile_init(&pbz, "out.pbz") != Z_OK) {
+    return EXIT_FAILURE;
   }
 
-  test::Object obj;
+  if (write_descriptor(&pbz, "messages.descr") != Z_OK) {
+    return EXIT_FAILURE;
+  }
+
+  hdr.set_version(1);
+  if (write_message(&pbz, &hdr) != Z_OK) {
+    return EXIT_FAILURE;
+  }
+
   for (int i = 0; i < 10; i++) {
     obj.set_id(i);
-    ret = write_message(&pbz, &obj);
-    if (ret != Z_OK) {
-      return ret;
+    if (write_message(&pbz, &obj) != Z_OK) {
+      return EXIT_FAILURE;
     }
   }
 
-  ret = pbzfile_close(&pbz);
-  if (ret != Z_OK) {
-    return ret;
+  if (pbzfile_close(&pbz) != Z_OK) {
+    return EXIT_FAILURE;
+  }
+
+  // -----------------------------------------------------------------
+  // Read file
+
+  if (pbzfile_read(&pbz, (char *)"out.pbz") != Z_OK) {
+    return EXIT_FAILURE;
+  }
+
+  for (;;) {
+    google::protobuf::Message *msg = next_message(&pbz);
+    if (msg == NULL) {
+      break;
+    }
+    std::cout << msg->DebugString() << std::endl;
+    delete msg;
   }
 
   google::protobuf::ShutdownProtobufLibrary();
-  return 0;
+  return ret;
 }

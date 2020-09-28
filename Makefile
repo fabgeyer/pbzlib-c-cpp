@@ -21,7 +21,7 @@ $(TARGET): tests.o messages.pb.o
 	g++ -c -g $< -o $@ $(CFLAGS)
 
 clean:
-	rm -f $(TARGET) tests.o messages.pb.cc messages.pb.h messages.pb.o messages.descr
+	rm -f $(TARGET) tests.o messages.pb.cc messages.pb.h messages.pb.o messages.descr out.pbz
 
 format:
 	clang-format -i tests.cc pbzfile.h messages.proto

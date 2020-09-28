@@ -4,7 +4,7 @@ This library is used for simplifying the serialization and deserialization of [p
 The main use-case is to save and read a large collection of objects of the same type.
 Each file contains a header with the description of the protocol buffer, meaning that no compilation of `.proto` description file is required before reading a `pbz` file.
 
-**WARNING:** This library is currently in alpha state and can only write `pbz` files.
+**WARNING:** This library is currently in alpha state. Read/write supported in C++. Read-only for the C version.
 
 
 ## Installation
@@ -24,3 +24,4 @@ For the C++ version:
 
 - [Python version](https://github.com/fabgeyer/pbzlib-py)
 - [Go version](https://github.com/fabgeyer/pbzlib-go)
+- [Java version](https://github.com/fabgeyer/pbzlib-java)
