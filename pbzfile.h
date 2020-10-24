@@ -301,7 +301,7 @@ int write_message(pbzfile *pbz, const ProtobufCMessage *msg) {
   // Write descriptor name if needed
 #ifdef __cplusplus
   if (msg->GetDescriptor() != pbz->last_descriptor) {
-    sz = msg->GetDescriptor()->name().length();
+    sz = msg->GetDescriptor()->full_name().length();
 #else
   if (msg->descriptor != pbz->last_descriptor) {
     sz = strlen(msg->descriptor->name);
@@ -316,7 +316,7 @@ int write_message(pbzfile *pbz, const ProtobufCMessage *msg) {
 
 #ifdef __cplusplus
     memcpy(pbz->buf_in + pbz->zstrm.avail_in,
-           msg->GetDescriptor()->name().c_str(), sz);
+           msg->GetDescriptor()->full_name().c_str(), sz);
 #else
     memcpy(pbz->buf_in + pbz->zstrm.avail_in, msg->descriptor->name, sz);
 #endif
@@ -535,7 +535,7 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
           } else {
             for (int i = 0; i < desc->message_type_count(); i++) {
               auto descriptor = desc->message_type(i);
-              pbz->descriptorsByName[descriptor->name()] = descriptor;
+              pbz->descriptorsByName[descriptor->full_name()] = descriptor;
             }
           }
         }
@@ -562,7 +562,7 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
 
       msg = pbz->dmf.GetPrototype(pbz->last_descriptor)->New();
       if (!msg->ParseFromArray(buf_msg, msg_len)) {
-        std::cerr << "Error parsing message" << std::endl;
+        fprintf(stderr, "Error parsing message");
         ret = Z_ERRNO;
         goto cleanup;
 

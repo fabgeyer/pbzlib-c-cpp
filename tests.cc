@@ -49,7 +49,7 @@ int main() {
     if (msg == NULL) {
       break;
     }
-    std::cout << msg->DebugString() << std::endl;
+    printf("%s\n", msg->DebugString().c_str());
     delete msg;
   }
 
