@@ -23,6 +23,7 @@
 #define T_FILE_DESCRIPTOR 1
 #define T_DESCRIPTOR_NAME 2
 #define T_MESSAGE 3
+#define T_PROTOBUF_VERSION 4
 
 #define MODE_CLOSED 0
 #define MODE_READ 1
@@ -570,6 +571,9 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
         ret = Z_OK;
         goto cleanup;
       }
+
+    } else if (msg_type == T_PROTOBUF_VERSION) {
+      // Do nothing
 
     } else {
       fprintf(stderr, "Unknown message type: %d\n", msg_type);
