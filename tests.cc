@@ -53,6 +53,10 @@ int main() {
     delete msg;
   }
 
+  if (pbzfile_close(&pbz) != Z_OK) {
+    return EXIT_FAILURE;
+  }
+
   google::protobuf::ShutdownProtobufLibrary();
   return ret;
 }

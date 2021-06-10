@@ -6,6 +6,14 @@ Each file contains a header with the description of the protocol buffer, meaning
 
 **WARNING:** This library is currently in alpha state. Read/write supported in C++. Read-only for the C version.
 
+## Usage
+
+Just include the `pbzfile.h` header in your code:
+```
+#include "pbzfile.h"
+```
+
+Examples of reading and writing files are available in `tests.cc`. To compile it use the `Makefile`.
 
 ## Installation
 

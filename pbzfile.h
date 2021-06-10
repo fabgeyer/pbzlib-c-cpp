@@ -374,7 +374,7 @@ int write_message(pbzfile *pbz, const ProtobufCMessage *msg) {
 // =============================================================================
 // Read operations
 
-int pbzfile_read(pbzfile *pbz, char *filename) {
+int pbzfile_read(pbzfile *pbz, const char *filename) {
   if (pbz->_mode != MODE_CLOSED) {
     fprintf(stderr, "PBZ file not ready");
     return EXIT_FAILURE;
