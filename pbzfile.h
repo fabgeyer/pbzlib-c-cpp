@@ -28,6 +28,7 @@
 #define MODE_CLOSED 0
 #define MODE_READ 1
 #define MODE_WRITE 2
+#define MODE_WRITE_READY 3
 
 // =============================================================================
 // Taken from protobuf-c/protobuf-c.c
@@ -152,21 +153,21 @@ static size_t uint64_pack(uint64_t value, uint8_t *out) {
 // =============================================================================
 
 typedef struct pbzfile_t {
-  int _mode;
+  int _mode = MODE_CLOSED;
   z_stream zstrm;
-  FILE *fpout;
-  FILE *fpin;
-  uint8_t *buf_in;
-  uint8_t *buf_out;
+  FILE *fpout = NULL;
+  FILE *fpin = NULL;
+  uint8_t *buf_in = NULL;
+  uint8_t *buf_out = NULL;
   uint8_t buf_tl[11];
   int buf_tl_start = 0;
 #ifdef __cplusplus
-  const ::google::protobuf::Descriptor *last_descriptor;
+  const ::google::protobuf::Descriptor *last_descriptor = NULL;
   google::protobuf::DescriptorPool pool;
   std::map<std::string, const google::protobuf::Descriptor *> descriptorsByName;
   google::protobuf::DynamicMessageFactory dmf;
 #else
-  const ProtobufCMessageDescriptor *last_descriptor;
+  const ProtobufCMessageDescriptor *last_descriptor = NULL;
 #endif
 } pbzfile;
 
@@ -177,7 +178,7 @@ int pbzfile_close(pbzfile *pbz);
 
 int pbzfile_init(pbzfile *pbz, const char *filename) {
   if (pbz->_mode != MODE_CLOSED) {
-    fprintf(stderr, "PBZ file not ready");
+    fprintf(stderr, "PBZ file not ready\n");
     return EXIT_FAILURE;
   }
 
@@ -272,7 +273,7 @@ int write_descriptor_file(pbzfile *pbz, FILE *fpdescr) {
 
 int write_descriptor(pbzfile *pbz, const char *filename) {
   if (pbz->_mode != MODE_WRITE) {
-    fprintf(stderr, "PBZ file not in write mode");
+    fprintf(stderr, "PBZ file not in write mode\n");
     return EXIT_FAILURE;
   }
 
@@ -285,6 +286,9 @@ int write_descriptor(pbzfile *pbz, const char *filename) {
     return ret;
   }
   fclose(fpdescr);
+
+  // Protobuf messages can now be written
+  pbz->_mode = MODE_WRITE_READY;
   return Z_OK;
 }
 
@@ -293,11 +297,16 @@ int write_message(pbzfile *pbz, ::google::protobuf::Message *msg) {
 #else
 int write_message(pbzfile *pbz, const ProtobufCMessage *msg) {
 #endif
-  int sz, ret, have;
-  if (pbz->_mode != MODE_WRITE) {
-    fprintf(stderr, "PBZ file not in write mode");
+  if (pbz->_mode != MODE_WRITE_READY) {
+    if (pbz->_mode == MODE_WRITE) {
+      fprintf(stderr, "Descriptor file not written!\n");
+    } else {
+      fprintf(stderr, "PBZ file not in write mode\n");
+    }
     return EXIT_FAILURE;
   }
+
+  int sz, ret, have;
 
   // Write descriptor name if needed
 #ifdef __cplusplus
@@ -376,7 +385,7 @@ int write_message(pbzfile *pbz, const ProtobufCMessage *msg) {
 
 int pbzfile_read(pbzfile *pbz, const char *filename) {
   if (pbz->_mode != MODE_CLOSED) {
-    fprintf(stderr, "PBZ file not ready");
+    fprintf(stderr, "PBZ file not ready\n");
     return EXIT_FAILURE;
   }
 
@@ -420,21 +429,20 @@ int pbzfile_read(pbzfile *pbz, const char *filename) {
   return ret;
 }
 
-google::protobuf::Message *next_message(pbzfile *pbz) {
+int64_t _next_raw_message(pbzfile *pbz, uint8_t **raw_msg) {
   if (pbz->_mode != MODE_READ) {
-    fprintf(stderr, "PBZ file not in read mode");
-    return NULL;
+    fprintf(stderr, "PBZ file not in read mode\n");
+    return -1;
   }
 
   int ret = Z_OK;
   uint8_t *buf_msg = NULL;
-  google::protobuf::Message *msg = NULL;
 
   for (;;) {
     if ((ret == Z_STREAM_END) ||
         (pbz->zstrm.avail_in + pbz->buf_tl_start == 0)) {
       // No more data to be read
-      return NULL;
+      return -1;
     }
 
     // Parse type and length first
@@ -450,11 +458,11 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
       }
       ret = inflate(&pbz->zstrm, Z_NO_FLUSH);
       if (ret == Z_STREAM_END) {
-        return NULL;
+        return -1;
       } else if (ret != Z_OK) {
         fprintf(stderr, "zlib inflate error: %d in=%d out=%d (L%d)\n", ret,
                 pbz->zstrm.avail_in, pbz->zstrm.avail_out, __LINE__);
-        return NULL;
+        return -1;
       }
 
       if (pbz->zstrm.avail_out == 0) {
@@ -469,12 +477,12 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
 
     uint8_t msg_type = pbz->buf_tl[0];
     if (msg_type == 0) {
-      return NULL;
+      return -1;
     }
     unsigned sz_int = scan_varint(10, pbz->buf_tl + 1);
     if (sz_int == 0) {
       fprintf(stderr, "Invalid message size (L%d)\n", __LINE__);
-      return NULL;
+      return -1;
     }
 
     uint64_t msg_len = parse_uint64(sz_int, pbz->buf_tl + 1);
@@ -483,7 +491,7 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
     // Buffer for holding the serialized protobuf message
     buf_msg = (uint8_t *)malloc(msg_len + 1);
     if (buf_msg == NULL) {
-      return NULL;
+      return 0;
     }
     buf_msg[msg_len] = 0;
 
@@ -530,7 +538,7 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
           google::protobuf::FileDescriptorProto fdp = fs.file(i);
           auto desc = pbz->pool.BuildFile(fdp);
           if (desc == NULL) {
-            fprintf(stderr, "Error parsing file descriptor (L%d)", __LINE__);
+            fprintf(stderr, "Error parsing file descriptor (L%d)\n", __LINE__);
             goto cleanup;
 
           } else {
@@ -561,16 +569,8 @@ google::protobuf::Message *next_message(pbzfile *pbz) {
         goto cleanup;
       }
 
-      msg = pbz->dmf.GetPrototype(pbz->last_descriptor)->New();
-      if (!msg->ParseFromArray(buf_msg, msg_len)) {
-        fprintf(stderr, "Error parsing message");
-        ret = Z_ERRNO;
-        goto cleanup;
-
-      } else {
-        ret = Z_OK;
-        goto cleanup;
-      }
+      *raw_msg = buf_msg;
+      return msg_len;
 
     } else if (msg_type == T_PROTOBUF_VERSION) {
       // Do nothing
@@ -591,11 +591,50 @@ cleanup:
     free(buf_msg);
   }
 
-  if (ret == Z_OK) {
-    return msg;
-  }
-  return NULL;
+  return -1;
 }
+
+#ifdef __cplusplus
+google::protobuf::Message *next_message(pbzfile *pbz) {
+  uint8_t *buf = NULL;
+  int64_t len = _next_raw_message(pbz, &buf);
+  if (len < 0) {
+    return NULL;
+  }
+
+  google::protobuf::Message *msg =
+      pbz->dmf.GetPrototype(pbz->last_descriptor)->New();
+  if (!msg->ParseFromArray(buf, len)) {
+    fprintf(stderr, "Error parsing message\n");
+    delete msg;
+    msg = NULL;
+  }
+  free(buf);
+  return msg;
+}
+
+/**
+ * Reads the next object from the PBZ file and inflates it in the message passed
+ * as argument
+ */
+int next_message(pbzfile *pbz, google::protobuf::Message *msg) {
+  uint8_t *buf = NULL;
+  int64_t len = _next_raw_message(pbz, &buf);
+  if (len < 0) {
+    return 1;
+  }
+
+  int ret = 0;
+  if (!msg->ParseFromArray(buf, len)) {
+    fprintf(stderr, "Error parsing message\n");
+    delete msg;
+    msg = NULL;
+    ret = 1;
+  }
+  free(buf);
+  return ret;
+}
+#endif
 
 // =============================================================================
 // Common read/write operations
@@ -608,7 +647,7 @@ int pbzfile_close(pbzfile *pbz) {
       fclose(pbz->fpin);
     }
 
-  } else if (pbz->_mode == MODE_WRITE) {
+  } else if ((pbz->_mode == MODE_WRITE) || (pbz->_mode == MODE_WRITE_READY)) {
     if (pbz->fpout != NULL) {
       ret = deflate(&pbz->zstrm, Z_FINISH);
       if (ret != Z_STREAM_END) {
@@ -624,6 +663,7 @@ int pbzfile_close(pbzfile *pbz) {
 
   if (pbz->buf_out != NULL) {
     free(pbz->buf_out);
+    pbz->buf_out = NULL;
   }
   /*
   if (pbz->buf_in != NULL) {
